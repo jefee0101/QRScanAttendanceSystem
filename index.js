@@ -1,12 +1,12 @@
 const express = require('express');
 const admin = require('firebase-admin');
-const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Load Firebase admin credentials
-const serviceAccount = require(path.join(__dirname, 'serviceAccountKey.json'));
+// Parse service account from environment variable
+const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 
+// Initialize Firebase Admin SDK
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
   databaseURL: "https://qrcodecounter-4fedb-default-rtdb.firebaseio.com"
@@ -14,7 +14,7 @@ admin.initializeApp({
 
 const db = admin.database();
 
-// Home route with input form
+// Home page with input form
 app.get('/', (req, res) => {
   res.send(`
     <h1>Welcome to QRCodeCounter</h1>
@@ -26,7 +26,7 @@ app.get('/', (req, res) => {
   `);
 });
 
-// /scan route: logs or shows logs
+// Handle scan logging or log listing
 app.get('/scan', async (req, res) => {
   const name = req.query.name;
 
@@ -37,9 +37,10 @@ app.get('/scan', async (req, res) => {
       timestamp: new Date().toISOString()
     });
 
-    return res.send(`<h1>Hello, ${name}! Your scan has been recorded in QRCodeCounter.</h1><p><a href="/scan">View scan logs</a></p>`);
+    return res.send(`<h1>Hello, ${name}! Your scan has been recorded.</h1><p><a href="/scan">View scan logs</a></p>`);
   }
 
+  // No name → show all scan logs
   const scansRef = db.ref('scans');
   const snapshot = await scansRef.once('value');
   const scans = snapshot.val() || {};
