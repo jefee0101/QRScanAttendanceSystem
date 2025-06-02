@@ -6,15 +6,15 @@ const PORT = process.env.PORT || 3000;
 const { initializeApp } = require('firebase/app');
 const { getDatabase, ref, push, get } = require('firebase/database');
 
-// Your Firebase config (replace with your actual config)
+// Your Firebase config (replaced with your actual config)
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  databaseURL: "https://YOUR_PROJECT.firebaseio.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyAX_fn8C2f4Jmg98Ryu4y73teIr2vkPMXo",
+  authDomain: "qrcodecounter-4fedb.firebaseapp.com",
+  projectId: "qrcodecounter-4fedb",
+  storageBucket: "qrcodecounter-4fedb.firebasestorage.app",
+  messagingSenderId: "460463651638",
+  appId: "1:460463651638:web:b97941c421e03650865197",
+  measurementId: "G-RJ36RHCH02"
 };
 
 // Initialize Firebase app and database
@@ -44,7 +44,7 @@ app.get('/scan', async (req, res) => {
       timestamp: new Date().toISOString()
     });
 
-    return res.send(`<h1>Hello, ${name}! Your scan has been recorded in QRCodeCounter.</h1><p><a href="/scan">View scan logs</a></p>`);
+    return res.send(<h1>Hello, ${name}! Your scan has been recorded in QRCodeCounter.</h1><p><a href="/scan">View scan logs</a></p>);
   }
 
   // No name → show logs
@@ -55,4 +55,15 @@ app.get('/scan', async (req, res) => {
     <tr><th>Name</th><th>Timestamp</th></tr>`;
 
   Object.values(scans).forEach(scan => {
-    html
+    html += <tr><td>${scan.name}</td><td>${scan.timestamp}</td></tr>;
+  });
+
+  html += '</table><p><a href="/">Back to Home</a></p>';
+
+  res.send(html);
+});
+
+// Start server
+app.listen(PORT, () => {
+  console.log(QRCodeCounter server running on port ${PORT});
+});
