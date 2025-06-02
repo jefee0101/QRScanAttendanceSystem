@@ -1,7 +1,10 @@
 const express = require('express');
-const firebase = require('firebase');
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Import from Firebase modular SDK
+const { initializeApp } = require('firebase/app');
+const { getDatabase, ref, push, get } = require('firebase/database');
 
 // Firebase config (REPLACE with your own project config!)
 const firebaseConfig = {
@@ -14,9 +17,9 @@ const firebaseConfig = {
   appId: "YOUR_APP_ID"
 };
 
-// Initialize Firebase
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
+// Initialize Firebase app and database
+const appFirebase = initializeApp(firebaseConfig);
+const db = getDatabase(appFirebase);
 
 // Home route with input form
 app.get('/', (req, res) => {
@@ -36,7 +39,7 @@ app.get('/scan', async (req, res) => {
 
   if (name) {
     // Log the scan
-    await db.ref('scans').push({
+    await push(ref(db, 'scans'), {
       name: name,
       timestamp: new Date().toISOString()
     });
@@ -45,14 +48,14 @@ app.get('/scan', async (req, res) => {
   }
 
   // No name → show logs
-  const snapshot = await db.ref('scans').once('value');
+  const snapshot = await get(ref(db, 'scans'));
   const scans = snapshot.val() || {};
 
   let html = `<h1>QRCodeCounter Logs</h1><table border="1" cellpadding="8" cellspacing="0">
     <tr><th>Name</th><th>Timestamp</th></tr>`;
 
   Object.values(scans).forEach(scan => {
-    html += `<tr><td>${scan.name}</td><td>${scan.timestamp}</td></tr>`;
+    html += <tr><td>${scan.name}</td><td>${scan.timestamp}</td></tr>;
   });
 
   html += '</table><p><a href="/">Back to Home</a></p>';
