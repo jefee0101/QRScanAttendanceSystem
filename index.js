@@ -44,7 +44,7 @@ app.get('/scan', async (req, res) => {
       timestamp: new Date().toISOString()
     });
 
-    return res.send(<h1>Hello, ${name}! Your scan has been recorded in QRCodeCounter.</h1><p><a href="/scan">View scan logs</a></p>);
+    return res.send(`<h1>Hello, ${name}! Your scan has been recorded in QRCodeCounter.</h1><p><a href="/scan">View scan logs</a></p>`);
   }
 
   // No name → show logs
@@ -55,15 +55,15 @@ app.get('/scan', async (req, res) => {
     <tr><th>Name</th><th>Timestamp</th></tr>`;
 
   Object.values(scans).forEach(scan => {
-    html += <tr><td>${scan.name}</td><td>${scan.timestamp}</td></tr>;
+    html += `<tr><td>${scan.name}</td><td>${scan.timestamp}</td></tr>`;
   });
 
-  html += '</table><p><a href="/">Back to Home</a></p>';
+  html += `</table><p><a href="/">Back to Home</a></p>`;
 
   res.send(html);
 });
 
 // Start server
 app.listen(PORT, () => {
-  console.log(QRCodeCounter server running on port ${PORT});
+  console.log(`QRCodeCounter server running on port ${PORT}`);
 });
