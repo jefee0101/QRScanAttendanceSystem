@@ -6,12 +6,13 @@ const PORT = process.env.PORT || 3000;
 const { initializeApp } = require('firebase/app');
 const { getDatabase, ref, push, get } = require('firebase/database');
 
-// Your Firebase config (replaced with your actual config)
+// Updated Firebase config
 const firebaseConfig = {
   apiKey: "AIzaSyAX_fn8C2f4Jmg98Ryu4y73teIr2vkPMXo",
   authDomain: "qrcodecounter-4fedb.firebaseapp.com",
+  databaseURL: "https://qrcodecounter-4fedb-default-rtdb.firebaseio.com", // Added this line
   projectId: "qrcodecounter-4fedb",
-  storageBucket: "qrcodecounter-4fedb.firebasestorage.app",
+  storageBucket: "qrcodecounter-4fedb.appspot.com", // Fixed typo here
   messagingSenderId: "460463651638",
   appId: "1:460463651638:web:b97941c421e03650865197",
   measurementId: "G-RJ36RHCH02"
