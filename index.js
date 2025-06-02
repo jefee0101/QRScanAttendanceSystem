@@ -2,11 +2,11 @@ const express = require('express');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Import from Firebase modular SDK
+// Firebase modular imports
 const { initializeApp } = require('firebase/app');
 const { getDatabase, ref, push, get } = require('firebase/database');
 
-// Firebase config (REPLACE with your own project config!)
+// Your Firebase config (replace with your actual config)
 const firebaseConfig = {
   apiKey: "YOUR_API_KEY",
   authDomain: "YOUR_PROJECT.firebaseapp.com",
@@ -55,14 +55,4 @@ app.get('/scan', async (req, res) => {
     <tr><th>Name</th><th>Timestamp</th></tr>`;
 
   Object.values(scans).forEach(scan => {
-    html += <tr><td>${scan.name}</td><td>${scan.timestamp}</td></tr>;
-  });
-
-  html += '</table><p><a href="/">Back to Home</a></p>';
-  res.send(html);
-});
-
-// Start server
-app.listen(PORT, () => {
-  console.log(`QRCodeCounter server running on port ${PORT}`);
-});
+    html
