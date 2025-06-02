@@ -1,26 +1,18 @@
 const express = require('express');
+const admin = require('firebase-admin');
+const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Firebase modular imports
-const { initializeApp } = require('firebase/app');
-const { getDatabase, ref, push, get } = require('firebase/database');
+// Load Firebase admin credentials
+const serviceAccount = require(path.join(__dirname, 'serviceAccountKey.json'));
 
-// Updated Firebase config
-const firebaseConfig = {
-  apiKey: "AIzaSyAX_fn8C2f4Jmg98Ryu4y73teIr2vkPMXo",
-  authDomain: "qrcodecounter-4fedb.firebaseapp.com",
-  databaseURL: "https://qrcodecounter-4fedb-default-rtdb.firebaseio.com", // Added this line
-  projectId: "qrcodecounter-4fedb",
-  storageBucket: "qrcodecounter-4fedb.appspot.com", // Fixed typo here
-  messagingSenderId: "460463651638",
-  appId: "1:460463651638:web:b97941c421e03650865197",
-  measurementId: "G-RJ36RHCH02"
-};
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+  databaseURL: "https://qrcodecounter-4fedb-default-rtdb.firebaseio.com"
+});
 
-// Initialize Firebase app and database
-const appFirebase = initializeApp(firebaseConfig);
-const db = getDatabase(appFirebase);
+const db = admin.database();
 
 // Home route with input form
 app.get('/', (req, res) => {
@@ -39,8 +31,8 @@ app.get('/scan', async (req, res) => {
   const name = req.query.name;
 
   if (name) {
-    // Log the scan
-    await push(ref(db, 'scans'), {
+    const scansRef = db.ref('scans');
+    await scansRef.push({
       name: name,
       timestamp: new Date().toISOString()
     });
@@ -48,8 +40,8 @@ app.get('/scan', async (req, res) => {
     return res.send(`<h1>Hello, ${name}! Your scan has been recorded in QRCodeCounter.</h1><p><a href="/scan">View scan logs</a></p>`);
   }
 
-  // No name → show logs
-  const snapshot = await get(ref(db, 'scans'));
+  const scansRef = db.ref('scans');
+  const snapshot = await scansRef.once('value');
   const scans = snapshot.val() || {};
 
   let html = `<h1>QRCodeCounter Logs</h1><table border="1" cellpadding="8" cellspacing="0">
