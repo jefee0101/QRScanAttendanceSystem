@@ -3,7 +3,8 @@ const admin = require('firebase-admin');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Firebase service account from environment
+app.use(express.static('public'));
+
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 
 admin.initializeApp({
@@ -13,122 +14,149 @@ admin.initializeApp({
 
 const db = admin.database();
 
-// Homepage
 app.get('/', async (req, res) => {
+  // Get current scan count
   const scansRef = db.ref('scans');
   const snapshot = await scansRef.once('value');
   const scans = snapshot.val() || {};
   const count = Object.keys(scans).length;
 
   res.send(`
-    <html>
-      <head>
-        <style>
-          body {
-            margin: 0;
-            padding: 0;
-            height: 100vh;
-            background: linear-gradient(120deg, #0a0a0a, #111);
-            color: #fff;
-            font-family: 'Segoe UI', sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            overflow: hidden;
-          }
+  <!DOCTYPE html>
+  <html lang="en">
+  <head>
+    <title>QRCodeCounter</title>
+    <style>
+      /* Reset & body styles */
+      html, body {
+        height: 100%;
+        margin: 0;
+        font-family: Arial, sans-serif;
+        overflow: hidden;
+      }
 
-          .wave-bg {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 200%;
-            height: 200%;
-            background: linear-gradient(-45deg, #ff0000, #b30000, #ff4d4d, #ff1a1a);
-            background-size: 400% 400%;
-            animation: wave 15s ease infinite;
-            z-index: -1;
-            border-radius: 30% 70% 70% 30% / 30% 30% 70% 70%;
-            opacity: 0.2;
-            transform: rotate(-10deg);
-          }
+      /* Video background */
+      #bg-video {
+        position: fixed;
+        right: 0;
+        bottom: 0;
+        min-width: 100%;
+        min-height: 100%;
+        object-fit: cover;
+        z-index: -1;
+        filter: brightness(0.7);
+      }
 
-          @keyframes wave {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
-          }
+      /* Container to center content */
+      .container {
+        position: relative;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        color: #fff;
+        text-align: center;
+        padding: 20px;
+        background: rgba(0, 0, 0, 0.4);
+        box-sizing: border-box;
+      }
 
-          .container {
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(10px);
-            padding: 40px;
-            border-radius: 20px;
-            box-shadow: 0 0 30px rgba(255, 0, 0, 0.2);
-            max-width: 500px;
-            width: 100%;
-            text-align: center;
-          }
+      input[type="text"] {
+        padding: 10px;
+        font-size: 1rem;
+        border-radius: 4px;
+        border: none;
+        margin-right: 10px;
+        width: 250px;
+      }
 
-          h1 {
-            margin-bottom: 20px;
-          }
+      button {
+        padding: 10px 20px;
+        font-size: 1rem;
+        border: none;
+        border-radius: 4px;
+        background-color: #2196f3;
+        color: white;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+      }
+      button:hover {
+        background-color: #0b7dda;
+      }
 
-          input[type="text"] {
-            padding: 10px;
-            width: 80%;
-            border: none;
-            border-radius: 8px;
-            margin-bottom: 10px;
-            font-size: 16px;
-          }
+      a {
+        color: #fff;
+        text-decoration: underline;
+        margin-top: 20px;
+        display: inline-block;
+      }
 
-          button {
-            padding: 10px 20px;
-            background-color: #ff1a1a;
-            border: none;
-            border-radius: 8px;
-            color: white;
-            font-weight: bold;
-            cursor: pointer;
-            transition: background 0.3s ease;
-          }
+      #live-count {
+        font-size: 2rem;
+        margin: 20px 0;
+        font-weight: bold;
+      }
+    </style>
+  </head>
+  <body>
+    <video id="bg-video" autoplay muted loop>
+      <source src="/background.mp4" type="video/mp4" />
+      Your browser does not support the video tag.
+    </video>
 
-          button:hover {
-            background-color: #cc0000;
-          }
+    <div class="container">
+      <h1>Welcome to QRCodeCounter</h1>
+      <div id="live-count">Total Scans: ${count}</div>
 
-          .count {
-            margin-top: 20px;
-            font-size: 18px;
-            color: #ff6666;
-          }
+      <form method="GET" action="/scan" onsubmit="return validateForm()">
+        <input type="text" name="name" placeholder="Enter your name" required>
+        <button type="submit">Scan</button>
+      </form>
 
-          a {
-            display: inline-block;
-            margin-top: 20px;
-            color: #ff4d4d;
-            text-decoration: none;
-            font-weight: bold;
+      <p><a href="/scan">View all scan logs</a></p>
+    </div>
+
+    <script>
+      // Live count update every 3 seconds
+      async function updateCount() {
+        try {
+          const res = await fetch('/count');
+          if(res.ok){
+            const data = await res.json();
+            document.getElementById('live-count').innerText = 'Total Scans: ' + data.count;
           }
-        </style>
-      </head>
-      <body>
-        <div class="wave-bg"></div>
-        <div class="container">
-          <h1>Welcome to QRCodeCounter</h1>
-          <form method="GET" action="/scan">
-            <input type="text" name="name" placeholder="Enter your name" required><br>
-            <button type="submit">Scan</button>
-          </form>
-          <div class="count">Total scans so far: <strong>${count}</strong></div>
-          <a href="/scan">View all scan logs</a>
-        </div>
-      </body>
-    </html>
+        } catch(e) {
+          console.error('Failed to fetch live count', e);
+        }
+      }
+
+      setInterval(updateCount, 3000);
+
+      // Optional form validation
+      function validateForm() {
+        const input = document.querySelector('input[name="name"]').value.trim();
+        if(input.length === 0){
+          alert('Please enter your name.');
+          return false;
+        }
+        return true;
+      }
+    </script>
+  </body>
+  </html>
   `);
 });
 
-// Scan route
+// Endpoint to provide live count as JSON
+app.get('/count', async (req, res) => {
+  const scansRef = db.ref('scans');
+  const snapshot = await scansRef.once('value');
+  const scans = snapshot.val() || {};
+  const count = Object.keys(scans).length;
+  res.json({ count });
+});
+
 app.get('/scan', async (req, res) => {
   const name = req.query.name;
 
@@ -139,113 +167,133 @@ app.get('/scan', async (req, res) => {
       timestamp: new Date().toISOString()
     });
 
-    return res.redirect('/scan');
+    return res.send(`
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <title>Scan Recorded</title>
+        <style>
+          html, body {
+            height: 100%;
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: black;
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+          }
+          .container {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 30px;
+            border-radius: 10px;
+            max-width: 400px;
+            box-sizing: border-box;
+          }
+          a {
+            color: #2196f3;
+            text-decoration: underline;
+          }
+          a:hover {
+            color: #0b7dda;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h1>Hello, ${name}!</h1>
+          <p>Your scan has been recorded in QRCodeCounter.</p>
+          <p><a href="/scan">View scan logs</a></p>
+          <p><a href="/">Back to Home</a></p>
+        </div>
+      </body>
+      </html>
+    `);
   }
 
   const scansRef = db.ref('scans');
   const snapshot = await scansRef.once('value');
   const scans = snapshot.val() || {};
 
-  let rows = Object.values(scans).map(scan =>
-    `<tr><td>${scan.name}</td><td>${scan.timestamp}</td></tr>`).join('');
+  let rows = '';
+  Object.values(scans).forEach(scan => {
+    rows += `<tr><td>${scan.name}</td><td>${scan.timestamp}</td></tr>`;
+  });
 
   res.send(`
-    <html>
-      <head>
-        <style>
-          body {
-            margin: 0;
-            padding: 0;
-            height: 100vh;
-            background: linear-gradient(120deg, #0a0a0a, #111);
-            color: #fff;
-            font-family: 'Segoe UI', sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            overflow: auto;
-          }
-
-          .wave-bg {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 200%;
-            height: 200%;
-            background: linear-gradient(-45deg, #ff0000, #b30000, #ff4d4d, #ff1a1a);
-            background-size: 400% 400%;
-            animation: wave 15s ease infinite;
-            z-index: -1;
-            border-radius: 30% 70% 70% 30% / 30% 30% 70% 70%;
-            opacity: 0.2;
-            transform: rotate(-10deg);
-          }
-
-          @keyframes wave {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
-          }
-
-          .container {
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(10px);
-            padding: 40px;
-            border-radius: 20px;
-            box-shadow: 0 0 30px rgba(255, 0, 0, 0.2);
-            max-width: 800px;
-            width: 90%;
-            text-align: center;
-          }
-
-          h1 {
-            margin-bottom: 20px;
-          }
-
-          table {
-            width: 100%;
-            border-collapse: collapse;
-            color: #fff;
-          }
-
-          th, td {
-            padding: 10px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-          }
-
-          th {
-            background-color: rgba(255, 0, 0, 0.3);
-          }
-
-          tr:nth-child(even) {
-            background-color: rgba(255, 255, 255, 0.05);
-          }
-
-          a {
-            display: inline-block;
-            margin-top: 20px;
-            color: #ff4d4d;
-            text-decoration: none;
-            font-weight: bold;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="wave-bg"></div>
-        <div class="container">
-          <h1>QRCodeCounter Logs</h1>
-          <table>
-            <tr><th>Name</th><th>Timestamp</th></tr>
-            ${rows}
-          </table>
-          <a href="/">Back to Home</a>
-        </div>
-      </body>
-    </html>
+  <!DOCTYPE html>
+  <html lang="en">
+  <head>
+    <title>Scan Logs</title>
+    <style>
+      html, body {
+        height: 100%;
+        margin: 0;
+        font-family: Arial, sans-serif;
+        background: black;
+        color: white;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+      body {
+        background: black;
+      }
+      .container {
+        width: 90%;
+        max-width: 800px;
+        background: rgba(0,0,0,0.8);
+        padding: 20px;
+        border-radius: 10px;
+        box-sizing: border-box;
+        overflow-x: auto;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        color: white;
+      }
+      th, td {
+        padding: 12px 15px;
+        border-bottom: 1px solid #ddd;
+        text-align: left;
+      }
+      th {
+        background-color: #2196f3;
+      }
+      tr:hover {
+        background-color: rgba(33, 150, 243, 0.2);
+      }
+      a {
+        display: inline-block;
+        margin-top: 20px;
+        color: #2196f3;
+        text-decoration: underline;
+      }
+      a:hover {
+        color: #0b7dda;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>QRCodeCounter Logs</h1>
+      <table>
+        <thead>
+          <tr><th>Name</th><th>Timestamp</th></tr>
+        </thead>
+        <tbody>
+          ${rows}
+        </tbody>
+      </table>
+      <p><a href="/">Back to Home</a></p>
+    </div>
+  </body>
+  </html>
   `);
 });
 
-// Start server
 app.listen(PORT, () => {
   console.log(`QRCodeCounter server running on port ${PORT}`);
 });
