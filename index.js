@@ -1,37 +1,49 @@
 const express = require('express');
-const admin = require('firebase-admin');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Firebase modular imports
+const { initializeApp } = require('firebase/app');
+const { getDatabase, ref, push, get } = require('firebase/database');
+
+// Serve static files (for background video)
 app.use(express.static('public'));
 
-const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+// Your Firebase config (replace with your actual config)
+const firebaseConfig = {
+  apiKey: "AIzaSyAX_fn8C2f4Jmg98Ryu4y73teIr2vkPMXo",
+  authDomain: "qrcodecounter-4fedb.firebaseapp.com",
+  projectId: "qrcodecounter-4fedb",
+  storageBucket: "qrcodecounter-4fedb.firebasestorage.app",
+  messagingSenderId: "460463651638",
+  appId: "1:460463651638:web:b97941c421e03650865197",
+  measurementId: "G-RJ36RHCH02",
+  databaseURL: "https://qrcodecounter-4fedb-default-rtdb.firebaseio.com/"
+};
 
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-  databaseURL: "https://qrcodecounter-4fedb-default-rtdb.firebaseio.com"
-});
+// Initialize Firebase app and database
+const appFirebase = initializeApp(firebaseConfig);
+const db = getDatabase(appFirebase);
 
-const db = admin.database();
-
+// Home route with input form and live scan count
 app.get('/', async (req, res) => {
-  // Get current scan count
-  const scansRef = db.ref('scans');
-  const snapshot = await scansRef.once('value');
+  // Get all scans count from Firebase DB
+  const snapshot = await get(ref(db, 'scans'));
   const scans = snapshot.val() || {};
-  const count = Object.keys(scans).length;
+  const scanCount = Object.keys(scans).length;
 
   res.send(`
   <!DOCTYPE html>
   <html lang="en">
   <head>
-    <title>QRCodeCounter</title>
+    <title>QRCodeCounter - Home</title>
     <style>
-      /* Reset & body styles */
+      /* Reset and base styles */
       html, body {
         height: 100%;
         margin: 0;
-        font-family: Arial, sans-serif;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        color: white;
         overflow: hidden;
       }
 
@@ -44,62 +56,73 @@ app.get('/', async (req, res) => {
         min-height: 100%;
         object-fit: cover;
         z-index: -1;
-        filter: brightness(0.7);
+        filter: brightness(0.6);
       }
 
-      /* Container to center content */
+      /* Glass effect container */
       .container {
         position: relative;
-        height: 100vh;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        color: #fff;
-        text-align: center;
-        padding: 20px;
-        background: rgba(0, 0, 0, 0.4);
+        max-width: 400px;
+        margin: 80px auto;
+        background: rgba(255, 255, 255, 0.15);
+        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        border-radius: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        padding: 30px;
         box-sizing: border-box;
+        text-align: center;
       }
 
+      /* Form input */
       input[type="text"] {
+        width: 80%;
         padding: 10px;
-        font-size: 1rem;
-        border-radius: 4px;
         border: none;
-        margin-right: 10px;
-        width: 250px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        font-size: 1rem;
       }
 
+      /* Button styling */
       button {
-        padding: 10px 20px;
-        font-size: 1rem;
-        border: none;
-        border-radius: 4px;
         background-color: #2196f3;
+        border: none;
+        padding: 10px 20px;
         color: white;
+        border-radius: 8px;
         cursor: pointer;
+        font-size: 1rem;
         transition: background-color 0.3s ease;
       }
+
       button:hover {
         background-color: #0b7dda;
       }
 
+      /* Links */
       a {
-        color: #fff;
+        color: #bbdefb;
         text-decoration: underline;
+        font-weight: 600;
+        display: block;
         margin-top: 20px;
-        display: inline-block;
+      }
+      a:hover {
+        color: #64b5f6;
       }
 
-      #live-count {
-        font-size: 2rem;
-        margin: 20px 0;
-        font-weight: bold;
+      /* Scan count styling */
+      .scan-count {
+        font-size: 1.2rem;
+        margin-bottom: 20px;
+        font-weight: 600;
       }
     </style>
   </head>
   <body>
+    <!-- Video background -->
     <video id="bg-video" autoplay muted loop>
       <source src="/background.mp4" type="video/mp4" />
       Your browser does not support the video tag.
@@ -107,66 +130,30 @@ app.get('/', async (req, res) => {
 
     <div class="container">
       <h1>Welcome to QRCodeCounter</h1>
-      <div id="live-count">Total Scans: ${count}</div>
-
-      <form method="GET" action="/scan" onsubmit="return validateForm()">
-        <input type="text" name="name" placeholder="Enter your name" required>
+      <div class="scan-count">Total Scans: ${scanCount}</div>
+      <form method="GET" action="/scan">
+        <input type="text" name="name" placeholder="Enter your name" required />
         <button type="submit">Scan</button>
       </form>
-
-      <p><a href="/scan">View all scan logs</a></p>
+      <a href="/scan">View all scan logs</a>
     </div>
-
-    <script>
-      // Live count update every 3 seconds
-      async function updateCount() {
-        try {
-          const res = await fetch('/count');
-          if(res.ok){
-            const data = await res.json();
-            document.getElementById('live-count').innerText = 'Total Scans: ' + data.count;
-          }
-        } catch(e) {
-          console.error('Failed to fetch live count', e);
-        }
-      }
-
-      setInterval(updateCount, 3000);
-
-      // Optional form validation
-      function validateForm() {
-        const input = document.querySelector('input[name="name"]').value.trim();
-        if(input.length === 0){
-          alert('Please enter your name.');
-          return false;
-        }
-        return true;
-      }
-    </script>
   </body>
   </html>
   `);
 });
 
-// Endpoint to provide live count as JSON
-app.get('/count', async (req, res) => {
-  const scansRef = db.ref('scans');
-  const snapshot = await scansRef.once('value');
-  const scans = snapshot.val() || {};
-  const count = Object.keys(scans).length;
-  res.json({ count });
-});
-
+// /scan route: logs new scans or shows all logs with glass effect and video background
 app.get('/scan', async (req, res) => {
   const name = req.query.name;
 
   if (name) {
-    const scansRef = db.ref('scans');
-    await scansRef.push({
+    // Log the scan in Firebase Realtime Database
+    await push(ref(db, 'scans'), {
       name: name,
       timestamp: new Date().toISOString()
     });
 
+    // Confirmation page after logging scan
     return res.send(`
       <!DOCTYPE html>
       <html lang="en">
@@ -176,7 +163,7 @@ app.get('/scan', async (req, res) => {
           html, body {
             height: 100%;
             margin: 0;
-            font-family: Arial, sans-serif;
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
             background: black;
             color: white;
             display: flex;
@@ -212,15 +199,17 @@ app.get('/scan', async (req, res) => {
     `);
   }
 
-  const scansRef = db.ref('scans');
-  const snapshot = await scansRef.once('value');
+  // Show all scan logs if no name query param
+  const snapshot = await get(ref(db, 'scans'));
   const scans = snapshot.val() || {};
 
+  // Generate table rows dynamically
   let rows = '';
   Object.values(scans).forEach(scan => {
     rows += `<tr><td>${scan.name}</td><td>${scan.timestamp}</td></tr>`;
   });
 
+  // Logs page with glass effect container and video background
   res.send(`
   <!DOCTYPE html>
   <html lang="en">
@@ -230,53 +219,85 @@ app.get('/scan', async (req, res) => {
       html, body {
         height: 100%;
         margin: 0;
-        font-family: Arial, sans-serif;
-        background: black;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
         color: white;
+        overflow: hidden;
+      }
+
+      #bg-video {
+        position: fixed;
+        right: 0;
+        bottom: 0;
+        min-width: 100%;
+        min-height: 100%;
+        object-fit: cover;
+        z-index: -1;
+        filter: brightness(0.6);
+      }
+
+      .container {
+        position: relative;
+        max-width: 900px;
+        margin: 60px auto;
+        background: rgba(255, 255, 255, 0.15);
+        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        border-radius: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        padding: 30px;
+        box-sizing: border-box;
+        color: white;
+      }
+
+      body {
         display: flex;
         justify-content: center;
-        align-items: center;
-      }
-      body {
-        background: black;
-      }
-      .container {
-        width: 90%;
-        max-width: 800px;
-        background: rgba(0,0,0,0.8);
+        align-items: flex-start;
         padding: 20px;
-        border-radius: 10px;
-        box-sizing: border-box;
-        overflow-x: auto;
       }
+
       table {
         width: 100%;
         border-collapse: collapse;
+        background: transparent;
         color: white;
       }
+
       th, td {
-        padding: 12px 15px;
-        border-bottom: 1px solid #ddd;
+        padding: 14px 20px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.3);
         text-align: left;
       }
+
       th {
-        background-color: #2196f3;
+        background-color: rgba(33, 150, 243, 0.7);
+        border-radius: 10px 10px 0 0;
+        font-weight: 600;
       }
+
       tr:hover {
         background-color: rgba(33, 150, 243, 0.2);
       }
+
       a {
+        color: #bbdefb;
+        text-decoration: underline;
+        font-weight: 600;
         display: inline-block;
         margin-top: 20px;
-        color: #2196f3;
-        text-decoration: underline;
       }
       a:hover {
-        color: #0b7dda;
+        color: #64b5f6;
       }
     </style>
   </head>
   <body>
+    <video id="bg-video" autoplay muted loop>
+      <source src="/background.mp4" type="video/mp4" />
+      Your browser does not support the video tag.
+    </video>
+
     <div class="container">
       <h1>QRCodeCounter Logs</h1>
       <table>
@@ -294,6 +315,7 @@ app.get('/scan', async (req, res) => {
   `);
 });
 
+// Start server
 app.listen(PORT, () => {
   console.log(`QRCodeCounter server running on port ${PORT}`);
 });
