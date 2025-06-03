@@ -3,10 +3,9 @@ const admin = require('firebase-admin');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Parse service account from environment variable
+// Firebase service account from environment
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 
-// Initialize Firebase Admin SDK
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
   databaseURL: "https://qrcodecounter-4fedb-default-rtdb.firebaseio.com"
@@ -14,19 +13,66 @@ admin.initializeApp({
 
 const db = admin.database();
 
-// Home page with input form
-app.get('/', (req, res) => {
+// Serve homepage
+app.get('/', async (req, res) => {
+  const scansRef = db.ref('scans');
+  const snapshot = await scansRef.once('value');
+  const scans = snapshot.val() || {};
+  const count = Object.keys(scans).length;
+
   res.send(`
-    <h1>Welcome to QRCodeCounter</h1>
-    <form method="GET" action="/scan">
-      <input type="text" name="name" placeholder="Enter your name" required>
-      <button type="submit">Scan</button>
-    </form>
-    <p><a href="/scan">View all scan logs</a></p>
+    <html>
+      <head>
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+          }
+          .container {
+            max-width: 600px;
+            margin: 80px auto;
+            background-color: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+          }
+          input, button {
+            padding: 10px;
+            font-size: 16px;
+            margin-top: 10px;
+          }
+          .count {
+            margin-top: 20px;
+            font-size: 18px;
+            color: #444;
+          }
+          a {
+            display: inline-block;
+            margin-top: 20px;
+            text-decoration: none;
+            color: #007BFF;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h1>Welcome to QRCodeCounter</h1>
+          <form method="GET" action="/scan">
+            <input type="text" name="name" placeholder="Enter your name" required><br>
+            <button type="submit">Scan</button>
+          </form>
+          <div class="count">Total scans so far: <strong>${count}</strong></div>
+          <a href="/scan">View all scan logs</a>
+        </div>
+      </body>
+    </html>
   `);
 });
 
-// Handle scan logging or log listing
+// Scan or view logs
 app.get('/scan', async (req, res) => {
   const name = req.query.name;
 
@@ -37,24 +83,101 @@ app.get('/scan', async (req, res) => {
       timestamp: new Date().toISOString()
     });
 
-    return res.send(`<h1>Hello, ${name}! Your scan has been recorded.</h1><p><a href="/scan">View scan logs</a></p>`);
+    return res.send(`
+      <html>
+        <head>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              text-align: center;
+              background-color: #f0f0f0;
+              padding: 80px 20px;
+            }
+            .message {
+              background-color: white;
+              padding: 30px;
+              border-radius: 12px;
+              box-shadow: 0 0 10px rgba(0,0,0,0.1);
+              max-width: 600px;
+              margin: auto;
+            }
+            a {
+              display: inline-block;
+              margin-top: 20px;
+              text-decoration: none;
+              color: #007BFF;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="message">
+            <h1>Hello, ${name}!</h1>
+            <p>Your scan has been recorded.</p>
+            <a href="/scan">View scan logs</a>
+          </div>
+        </body>
+      </html>
+    `);
   }
 
-  // No name → show all scan logs
+  // Show scan logs
   const scansRef = db.ref('scans');
   const snapshot = await scansRef.once('value');
   const scans = snapshot.val() || {};
 
-  let html = `<h1>QRCodeCounter Logs</h1><table border="1" cellpadding="8" cellspacing="0">
-    <tr><th>Name</th><th>Timestamp</th></tr>`;
+  let rows = Object.values(scans).map(scan => 
+    `<tr><td>${scan.name}</td><td>${scan.timestamp}</td></tr>`).join('');
 
-  Object.values(scans).forEach(scan => {
-    html += `<tr><td>${scan.name}</td><td>${scan.timestamp}</td></tr>`;
-  });
-
-  html += `</table><p><a href="/">Back to Home</a></p>`;
-
-  res.send(html);
+  res.send(`
+    <html>
+      <head>
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            padding: 60px 20px;
+            text-align: center;
+          }
+          .container {
+            max-width: 800px;
+            margin: auto;
+            background-color: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+          }
+          th, td {
+            padding: 10px;
+            border: 1px solid #ddd;
+          }
+          th {
+            background-color: #f2f2f2;
+          }
+          a {
+            display: inline-block;
+            margin-top: 20px;
+            text-decoration: none;
+            color: #007BFF;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h1>QRCodeCounter Logs</h1>
+          <table>
+            <tr><th>Name</th><th>Timestamp</th></tr>
+            ${rows}
+          </table>
+          <a href="/">Back to Home</a>
+        </div>
+      </body>
+    </html>
+  `);
 });
 
 // Start server
