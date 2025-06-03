@@ -6,10 +6,10 @@ const PORT = process.env.PORT || 3000;
 const { initializeApp } = require('firebase/app');
 const { getDatabase, ref, push, get } = require('firebase/database');
 
-// Serve static files (for background video)
+// Serve static files (video, Google API script can be loaded remotely)
 app.use(express.static('public'));
 
-// Your Firebase config (replace with your actual config)
+// Firebase config
 const firebaseConfig = {
   apiKey: "AIzaSyAX_fn8C2f4Jmg98Ryu4y73teIr2vkPMXo",
   authDomain: "qrcodecounter-4fedb.firebaseapp.com",
@@ -25,9 +25,11 @@ const firebaseConfig = {
 const appFirebase = initializeApp(firebaseConfig);
 const db = getDatabase(appFirebase);
 
-// Home route with input form and live scan count
+// Middleware to parse JSON body for POST requests
+app.use(express.json());
+
+// Homepage - show title, scan count, and "View Logs" link, plus Google Sign-In integration
 app.get('/', async (req, res) => {
-  // Get all scans count from Firebase DB
   const snapshot = await get(ref(db, 'scans'));
   const scans = snapshot.val() || {};
   const scanCount = Object.keys(scans).length;
@@ -36,18 +38,17 @@ app.get('/', async (req, res) => {
   <!DOCTYPE html>
   <html lang="en">
   <head>
-    <title>QRCodeCounter - Home</title>
+    <title>QRCodeCounter</title>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
-      /* Reset and base styles */
       html, body {
         height: 100%;
         margin: 0;
         font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
         color: white;
         overflow: hidden;
+        background: black;
       }
-
-      /* Video background */
       #bg-video {
         position: fixed;
         right: 0;
@@ -58,50 +59,28 @@ app.get('/', async (req, res) => {
         z-index: -1;
         filter: brightness(0.6);
       }
-
-      /* Glass effect container */
       .container {
         position: relative;
         max-width: 400px;
-        margin: 80px auto;
+        margin: 120px auto;
         background: rgba(255, 255, 255, 0.15);
         box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
         backdrop-filter: blur(8px);
         -webkit-backdrop-filter: blur(8px);
         border-radius: 20px;
         border: 1px solid rgba(255, 255, 255, 0.18);
-        padding: 30px;
+        padding: 40px 30px;
         box-sizing: border-box;
         text-align: center;
       }
-
-      /* Form input */
-      input[type="text"] {
-        width: 80%;
-        padding: 10px;
-        border: none;
-        border-radius: 8px;
+      h1 {
         margin-bottom: 20px;
-        font-size: 1rem;
       }
-
-      /* Button styling */
-      button {
-        background-color: #2196f3;
-        border: none;
-        padding: 10px 20px;
-        color: white;
-        border-radius: 8px;
-        cursor: pointer;
-        font-size: 1rem;
-        transition: background-color 0.3s ease;
+      .scan-count {
+        font-size: 1.4rem;
+        margin-bottom: 30px;
+        font-weight: 600;
       }
-
-      button:hover {
-        background-color: #0b7dda;
-      }
-
-      /* Links */
       a {
         color: #bbdefb;
         text-decoration: underline;
@@ -112,104 +91,100 @@ app.get('/', async (req, res) => {
       a:hover {
         color: #64b5f6;
       }
-
-      /* Scan count styling */
-      .scan-count {
-        font-size: 1.2rem;
-        margin-bottom: 20px;
-        font-weight: 600;
+      #g_id_onload, #g_id_signin {
+        margin: auto;
+        margin-top: 20px;
       }
     </style>
   </head>
   <body>
-    <!-- Video background -->
     <video id="bg-video" autoplay muted loop>
       <source src="/background.mp4" type="video/mp4" />
       Your browser does not support the video tag.
     </video>
 
     <div class="container">
-      <h1>Welcome to QRCodeCounter</h1>
+      <h1>QRCodeCounter</h1>
       <div class="scan-count">Total Scans: ${scanCount}</div>
-      <form method="GET" action="/scan">
-        <input type="text" name="name" placeholder="Enter your name" required />
-        <button type="submit">Scan</button>
-      </form>
       <a href="/scan">View all scan logs</a>
+
+      <!-- Google Sign-In button -->
+      <div id="g_id_onload"
+           data-client_id="YOUR_GOOGLE_CLIENT_ID_HERE"
+           data-auto_prompt="false"
+           data-callback="handleCredentialResponse">
+      </div>
+      <div class="g_id_signin" data-type="standard"></div>
     </div>
+
+    <script>
+      // This function runs after Google Sign-In success
+      async function handleCredentialResponse(response) {
+        // Decode JWT to get user info (using Google JWT library or manual decode)
+        const base64Url = response.credential.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+          return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+
+        const user = JSON.parse(jsonPayload);
+
+        // Extract user's display name (e.g., user.name)
+        const displayName = user.name || 'Anonymous';
+
+        // Send the name to backend /scan to record the scan
+        try {
+          const res = await fetch('/scan', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: displayName })
+          });
+          if (res.ok) {
+            alert('Hello, ' + displayName + '! Your scan has been recorded.');
+            // Optionally, reload to update scan count
+            location.reload();
+          } else {
+            alert('Failed to record scan.');
+          }
+        } catch (error) {
+          alert('Error sending scan data: ' + error.message);
+        }
+      }
+    </script>
   </body>
   </html>
   `);
 });
 
-// /scan route: logs new scans or shows all logs with glass effect and video background
-app.get('/scan', async (req, res) => {
-  const name = req.query.name;
-
-  if (name) {
-    // Log the scan in Firebase Realtime Database
-    await push(ref(db, 'scans'), {
-      name: name,
-      timestamp: new Date().toISOString()
-    });
-
-    // Confirmation page after logging scan
-    return res.send(`
-      <!DOCTYPE html>
-      <html lang="en">
-      <head>
-        <title>Scan Recorded</title>
-        <style>
-          html, body {
-            height: 100%;
-            margin: 0;
-            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-            background: black;
-            color: white;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            text-align: center;
-          }
-          .container {
-            background: rgba(0, 0, 0, 0.7);
-            padding: 30px;
-            border-radius: 10px;
-            max-width: 400px;
-            box-sizing: border-box;
-          }
-          a {
-            color: #2196f3;
-            text-decoration: underline;
-          }
-          a:hover {
-            color: #0b7dda;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <h1>Hello, ${name}!</h1>
-          <p>Your scan has been recorded in QRCodeCounter.</p>
-          <p><a href="/scan">View scan logs</a></p>
-          <p><a href="/">Back to Home</a></p>
-        </div>
-      </body>
-      </html>
-    `);
+// POST /scan - log a scan sent from frontend with user name
+app.post('/scan', async (req, res) => {
+  const { name } = req.body;
+  if (!name) {
+    return res.status(400).json({ error: 'Name is required' });
   }
 
-  // Show all scan logs if no name query param
+  try {
+    await push(ref(db, 'scans'), {
+      name,
+      timestamp: new Date().toISOString()
+    });
+    res.status(200).json({ message: 'Scan recorded' });
+  } catch (err) {
+    console.error('Error logging scan:', err);
+    res.status(500).json({ error: 'Failed to log scan' });
+  }
+});
+
+// GET /scan - show all scan logs page (with same styling as before)
+app.get('/scan', async (req, res) => {
   const snapshot = await get(ref(db, 'scans'));
   const scans = snapshot.val() || {};
 
-  // Generate table rows dynamically
   let rows = '';
   Object.values(scans).forEach(scan => {
     rows += `<tr><td>${scan.name}</td><td>${scan.timestamp}</td></tr>`;
   });
 
-  // Logs page with glass effect container and video background
   res.send(`
   <!DOCTYPE html>
   <html lang="en">
@@ -223,7 +198,6 @@ app.get('/scan', async (req, res) => {
         color: white;
         overflow: hidden;
       }
-
       #bg-video {
         position: fixed;
         right: 0;
@@ -234,7 +208,6 @@ app.get('/scan', async (req, res) => {
         z-index: -1;
         filter: brightness(0.6);
       }
-
       .container {
         position: relative;
         max-width: 900px;
@@ -249,37 +222,31 @@ app.get('/scan', async (req, res) => {
         box-sizing: border-box;
         color: white;
       }
-
       body {
         display: flex;
         justify-content: center;
         align-items: flex-start;
         padding: 20px;
       }
-
       table {
         width: 100%;
         border-collapse: collapse;
         background: transparent;
         color: white;
       }
-
       th, td {
         padding: 14px 20px;
         border-bottom: 1px solid rgba(255, 255, 255, 0.3);
         text-align: left;
       }
-
       th {
         background-color: rgba(33, 150, 243, 0.7);
         border-radius: 10px 10px 0 0;
         font-weight: 600;
       }
-
       tr:hover {
         background-color: rgba(33, 150, 243, 0.2);
       }
-
       a {
         color: #bbdefb;
         text-decoration: underline;
@@ -297,7 +264,6 @@ app.get('/scan', async (req, res) => {
       <source src="/background.mp4" type="video/mp4" />
       Your browser does not support the video tag.
     </video>
-
     <div class="container">
       <h1>QRCodeCounter Logs</h1>
       <table>
